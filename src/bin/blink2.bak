@@ -1,0 +1,107 @@
+#![no_main]
+#![no_std]
+
+extern crate cortex_m_rt as rt;
+extern crate cortex_m as cm;
+//use cm::{interrupt::Mutex};
+//use cm::peripheral::Peripherals;
+//use cortex_m_rt::entry;
+
+extern crate cortex_m_semihosting;
+//use cortex_m_semihosting::hprintln;
+
+extern crate panic_semihosting;
+
+//extern crate stm32f0;
+//use stm32f0::stm32f0x0;
+
+extern crate stm32f0xx_hal as hal;
+use hal::prelude::*;
+use hal::stm32;
+use hal::stm32::{interrupt, Interrupt, Peripherals, TIM3, TIM14};
+use hal::gpio::*;
+use hal::{
+    time::Hertz,
+    timers::*,
+};
+
+use rtfm::app;
+//use rtfm::cyccnt::{Instant, U32Ext};
+
+const PERIOD: u32 = 12_000_000;
+
+#[app(device = hal::stm32)]
+const APP: () = {
+
+    struct Resources {
+        led: gpiob::PB1<Output<PushPull>>,
+        timer: Timer<TIM3>
+    }
+
+    #[init]
+    fn init(ctx: init::Context) -> init::LateResources{
+        
+        let (mut led, timer) = cortex_m::interrupt::free(|cs| {
+            let mut peripherals = stm32::Peripherals::take().unwrap();
+            let mut cp = cm::peripheral::Peripherals::take().unwrap();
+            
+           // cortex_m::interrupt::enable();
+    
+          //  let rcc = &peripherals.RCC;
+            let mut rcc = peripherals.RCC
+                .configure()
+                .sysclk(8.mhz())
+                .freeze(&mut peripherals.FLASH);
+                // .configure()
+                // .sysclk(8.mhz())
+                // .freeze(&mut peripherals.FLASH); //constrain();
+    
+            let gpiob = peripherals.GPIOB.split(&mut rcc);
+            let gpioa = peripherals.GPIOA.split(&mut rcc);
+          //  let syst = peripherals.SYST.split(&mut rcc);
+            let syscfg = peripherals.SYSCFG;
+            let exti = peripherals.EXTI;
+
+           // let _ = cortex_m::interrupt::free(|cs| gpioa.pa0.into_pull_down_input(cs));
+            // let _ = cortex_m::interrupt::free(|cs| gpioa.pa0.into_pull_down_input(cs));
+            // let mut led = cortex_m::interrupt::free(|cs| gpiob.pb1.into_push_pull_output(cs));
+            //let mut tx = cortex_m::interrupt::free(|cs| gpioa.pa9.into_alternate_af1(cs));
+            let mut led = gpiob.pb1.into_push_pull_output(cs);
+
+            let mut timer = Timer::tim3(peripherals.TIM3, Hertz(1), &mut rcc);
+            // // // Generate an interrupt when the timer expires
+            timer.listen(Event::TimeOut);
+    
+            (led, timer)
+        });
+
+   //     ctx.spawn.foo().unwrap();
+        
+       // cx.schedule.bar(Instant::now() + PERIOD.cycles()).unwrap();
+
+        init::LateResources { led: led,  timer: timer}
+    }
+
+    // #[idle]
+    // fn idle(_: idle::Context) -> ! {
+    //     loop {
+    //         continue;
+    //     }
+    // }
+
+    // #[task(resources = [led])]
+    // fn foo(ctx: foo::Context) {
+    //     ctx.resources.led.toggle().ok();
+    // }
+
+    // extern "C" {
+    //     fn USART1();
+    //     fn USART2();
+    // }
+
+    #[task(binds = TIM3, resources = [led, timer])]
+    fn tim3(cxt: tim3::Context) {
+        cxt.resources.led.toggle().ok();
+        cxt.resources.timer.wait().ok();
+    }
+};

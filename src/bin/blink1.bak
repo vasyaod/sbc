@@ -1,0 +1,243 @@
+#![no_main]
+#![no_std]
+
+extern crate cortex_m_rt as rt;
+use rt::entry;
+
+extern crate cortex_m as cm;
+//use cm::{interrupt::Mutex};
+//use cm::peripheral::Peripherals;
+//use cortex_m_rt::entry;
+
+extern crate cortex_m_semihosting;
+//use cortex_m_semihosting::hprintln;
+
+extern crate panic_semihosting;
+
+// extern crate stm32f0;
+// use stm32f0::stm32f0x0;
+
+extern crate stm32f0xx_hal as hal;
+use hal::prelude::*;
+use hal::stm32;
+use hal::stm32::{interrupt, Interrupt, Peripherals, EXTI, TIM17};
+use hal::delay::Delay;
+use hal::{
+    time::Hertz,
+    timers::*,
+};
+//use hal::serial::Serial;
+
+use core::{cell::RefCell, ops::DerefMut};
+use cortex_m::{interrupt::Mutex, peripheral::Peripherals as c_m_Peripherals};
+
+// use core::fmt::Write;
+//static LED: Mutex<RefCell<Option<gpioa::PA1<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
+static mut l: bool = false;
+
+
+// Make timer interrupt registers globally available
+static GINT: Mutex<RefCell<Option<Timer<TIM17>>>> = Mutex::new(RefCell::new(None));
+
+#[entry]
+fn main() -> ! {
+    // unsafe {
+    //     cortex_m::interrupt::enable();
+    // }
+
+    //cortex_m::interrupt::free(|cs| {
+        //let cp = cm::peripheral::Peripherals::take().unwrap();
+        //     let mut peripherals = stm32::Peripherals::take().unwrap();
+        //    let cp = cm::peripheral::Peripherals::take().unwrap();
+            // *GINT.borrow(cs).borrow_mut() = Some(timer) 
+            // let mut timer = Timer::tim17(peripherals.TIM17, Hertz(1), &mut rcc);
+    
+            // // // Generate an interrupt when the timer expires
+            // timer.listen(Event::TimeOut);
+        
+        // let mut nvic = cp.NVIC;
+        // unsafe {
+        //     nvic.set_priority(Interrupt::TIM17, 1);
+        //     cortex_m::peripheral::NVIC::unmask(Interrupt::TIM17);
+        // }
+        // cortex_m::peripheral::NVIC::unpend(Interrupt::TIM17);
+    //});
+
+
+
+    let (mut led, mut delay) = cortex_m::interrupt::free(|cs| {
+        let mut peripherals = stm32::Peripherals::take().unwrap();
+        let mut cp = cm::peripheral::Peripherals::take().unwrap();
+        
+ //     cortex_m::interrupt::disable();
+
+      //  let rcc = &peripherals.RCC;
+        let mut rcc = peripherals.RCC
+            .configure()
+            .sysclk(48.mhz())
+            .pclk(24.mhz())
+            .freeze(&mut peripherals.FLASH);
+            // .configure()
+            // .sysclk(8.mhz())
+            // .freeze(&mut peripherals.FLASH); //constrain();
+
+        let gpiob = peripherals.GPIOB.split(&mut rcc);
+        let gpioa = peripherals.GPIOA.split(&mut rcc);
+      //  let syst = peripherals.SYST.split(&mut rcc);
+        let syscfg = peripherals.SYSCFG;
+        let exti = peripherals.EXTI;
+    
+       // let _ = cortex_m::interrupt::free(|cs| gpioa.pa0.into_pull_down_input(cs));
+        // let _ = cortex_m::interrupt::free(|cs| gpioa.pa0.into_pull_down_input(cs));
+        // let mut led = cortex_m::interrupt::free(|cs| gpiob.pb1.into_push_pull_output(cs));
+        //let mut tx = cortex_m::interrupt::free(|cs| gpioa.pa9.into_alternate_af1(cs));
+        let mut led = gpiob.pb1.into_push_pull_output(cs);
+    
+    
+        // Enable external interrupt for PA1
+        syscfg.exticr1.modify(|_, w| unsafe { w.exti0().bits(0) });
+    
+        // Set interrupt request mask for line 1
+        exti.imr.modify(|_, w| w.mr0().set_bit());
+    
+        // Set interrupt rising trigger for line 1
+        exti.rtsr.modify(|_, w| w.tr0().set_bit());
+    
+    
+        // Enable EXTI IRQ, set prio 1 and clear any pending IRQs
+        // let mut nvic = cp.NVIC;
+        // unsafe {
+        //     nvic.set_priority(Interrupt::EXTI0_1, 1);
+        //     cm::peripheral::NVIC::unmask(Interrupt::EXTI0_1);
+        // }
+        // cm::peripheral::NVIC::unpend(Interrupt::EXTI0_1);
+    
+        // Enable TIM7 IRQ, set prio 1 and clear any pending IRQs
+        // Set up a timer expiring after 1s
+        // Get delay provider
+        let mut delay = Delay::new(cp.SYST, &rcc);
+
+    //     let mut peripherals = stm32::Peripherals::take().unwrap();
+    //    let cp = cm::peripheral::Peripherals::take().unwrap();
+        // *GINT.borrow(cs).borrow_mut() = Some(timer) 
+        let mut timer = Timer::tim3(peripherals.TIM3, Hertz(1), &mut rcc);
+
+        // // // Generate an interrupt when the timer expires
+        timer.listen(Event::TimeOut);
+    
+        let mut nvic = cp.NVIC;
+        unsafe {
+            nvic.set_priority(Interrupt::TIM3, 1);
+           cortex_m::peripheral::NVIC::unmask(Interrupt::TIM3);
+        }   
+       // nvic.enable(Interrupt::TIM17);
+       // cortex_m::peripheral::NVIC::unpend(Interrupt::TIM3);
+        unsafe {
+         //   cortex_m::interrupt::enable();
+        }
+
+        (led, delay)
+    });
+
+    // Obtain a serial peripheral with  for unidirectional communication
+   // let mut serial = Serial::usart1tx(peripherals.USART1, tx, 115_200.bps(), &mut rcc);
+
+    led.set_high().unwrap();
+
+    loop {
+        led.toggle().unwrap();
+        // unsafe {
+        //     if l == false {
+        //         led.toggle().unwrap();
+        //    //     led.set_high().unwrap();
+        //     } 
+        // }
+    //    serial.write_str("This will get printed \r\n").ok();
+        delay.delay_ms(1_000_u16);
+    }
+// */
+}
+
+#[interrupt]
+fn EXTI0_1() {
+    unsafe {
+        l = true
+    }
+}
+
+#[interrupt]
+fn WWDG(){}
+#[interrupt]
+fn PVD(){}
+#[interrupt]
+fn RTC(){}
+#[interrupt]
+fn FLASH(){}
+#[interrupt]
+fn RCC(){}
+#[interrupt]
+fn EXTI2_3(){}
+#[interrupt]
+fn EXTI4_15(){}
+#[interrupt]
+fn DMA1_CH1(){}
+#[interrupt]
+fn DMA1_CH2_3(){}
+#[interrupt]
+fn DMA1_CH4_5(){}
+#[interrupt]
+fn ADC(){}
+#[interrupt]
+fn TIM1_BRK_UP_TRG_COM(){}
+#[interrupt]
+fn TIM1_CC(){}
+#[interrupt]
+fn TIM3(){
+    //l = true
+}
+#[interrupt]
+fn TIM6(){}
+#[interrupt]
+fn TIM14(){}
+#[interrupt]
+fn TIM15(){}
+#[interrupt]
+fn TIM16(){}
+#[interrupt]
+fn TIM17(){
+// let int = INT.get_or_insert_with(|| {
+  //  cortex_m::interrupt::free(|cs| {
+        // Move LED pin here, leaving a None in its place
+    //    GINT.borrow(cs).replace(None).unwrap()
+   // });
+//    });
+
+//    led.toggle().ok();
+//    int.wait().ok();    
+}
+#[interrupt]
+fn I2C1(){}
+#[interrupt]
+fn I2C2(){}
+#[interrupt]
+fn SPI1(){}
+#[interrupt]
+fn SPI2(){}
+#[interrupt]
+fn USART1(){}
+#[interrupt]
+fn USART2(){}
+#[interrupt]
+fn USART3_4_5_6(){}
+#[interrupt]
+fn USB(){}
+
+// #[exception]
+// fn HardFault(ef: &ExceptionFrame) -> ! {
+//     panic!("HardFault at {:#?}", ef);
+// }
+
+// #[exception]
+// fn DefaultHandler(irqn: i16) {
+//     panic!("Unhandled exception (IRQn = {})", irqn);
+// }

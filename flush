@@ -1,0 +1,3 @@
+#!/bin/bash
+
+openocd -f interface/stlink-v2.cfg -f target/stm32f0x.cfg -c "program target/thumbv6m-none-eabi/release/blink verify reset exit"
